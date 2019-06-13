@@ -7,6 +7,7 @@ Emotion recognition, face and hand tracking used for ARA (Autonomous Robot for A
 # Technologies
 
 Ubuntu 16.04
+
 Python 2.7
 
 # Installation Requirements
