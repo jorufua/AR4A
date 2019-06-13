@@ -28,5 +28,6 @@ Opencv sudo apt-get install python-opencv
 # Setup
 
 cd ARA-3
+
 python ReconocerCara.py
  
