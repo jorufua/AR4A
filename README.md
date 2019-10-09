@@ -14,15 +14,20 @@ Python 2.7
 
 # Installation Requirements
 
-Pip sudo apt-get install python-pip
+    Python
+          sudo apt install python2.7
+    
+    Pip
+          sudo apt install python-pip
 
-Keras pip install keras
+    Keras
+          sudo pip install keras
 
-Python sudo apt install python2.7
+    Tensorflow
+          sudo pip install tensorflow
 
-Tensorflow sudo pip install tensorflow
-
-Opencv sudo apt-get install python-opencv
+    Opencv
+          sudo apt-get install python-opencv
 
 
 # Setup
