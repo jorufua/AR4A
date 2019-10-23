@@ -18,30 +18,39 @@ Install the following packages on the Husarion CORE2 - ROS board:
     #ROS Kinetick KEY update
     sudo apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
     sudo apt-key del 421C365BD9FF1F717815A3895523BAEEB01FA116
-    #update && upgrade packages
+    
+    #update & upgrade packages, OpenCV will be installed with the ROS update
     sudo apt-get update && apt-get upgrade
+    
     #install pip v19   
     curl "https://bootstrap.pypa.io/get-pip.py" -o "get-pip.py"
     sudo python get-pip.py
-    sudo apt-get install python-dev
+    
     #install numpy requirements
+    sudo apt-get install python-dev
     sudo apt install libatlas-base-dev
+    
     #virtualenv system-wide install
-    sudo pip install -U virtualenv        
+    sudo pip install -U virtualenv
+    
     #tensorflow virtualenv creation
     vitutalenv --system-site-packages -p python tensorflow
+    
     #deploy tensorflow virtualenv
     source ~/tensorflow/bin/activate
+    
     #install tensorflow
     pip install --upgrade pip
     sudo pip install 'https://github.com/lhelontra/tensorflow-on-arm/releases/download/v1.14.0-buster/tensorflow-1.14.0-cp27-none-linux_armv7l.whl'
+    
     #install keras
     sudo pip install keras
-    #OpenCV will be installed with the ROS update
+    
+    #deactivate tensorflow virtualenv
+    deactivate
 
 # Setup
 
     cd ARA-3
-
     python ReconocerCara.py
  
