@@ -47,7 +47,7 @@ Install the following packages on the Husarion CORE2 - ROS board:
 
 # Setup
 
-cd ARA-3
+    cd ARA-3
 
-python ReconocerCara.py
+    python ReconocerCara.py
  
