@@ -3,21 +3,11 @@ ARA (Autonomous Robot for Autism)
 
 # General Info
 
-Emotion recognition, face and hand tracking are carried by the Autism Learning through Vision (ALV) algorithm in the ARA system, aiming to work together with the OAC (Output Adaptive Controller) with a High Order Sliding Mode (HOSM) observer which controls ARA's trajectories and interactions with children, serving as a therapeutic soluciton.
+ARA is intended to serve as a therapeutic solution for children in the Autism Spectrum Disorder. ARA implements an emotion recognition, face and hand tracking algorithm called Autism Learning through Vision (ALV) which is a cascade classifier + convNN classifier based, which aims to work toghether with an OAC (Output Adaptive Controller) implementing a High Order Sliding Mode (HOSM) observer to control ARA's trajectories and interactions with children.
 
 # Technologies
 
-Husarion CORE2 - ROS
-
-Ubuntu 16.04
-
-ROS - Kinetick
-
-Keras
-
-Tensorflow
-
-OpenCV
+Husarion CORE2 - ROS w/Raspberry Pi 3 B+ & Ubuntu 16.04
 
 Python 2.7
 
@@ -25,24 +15,29 @@ Python 2.7
 
 Install the following packages on the Husarion CORE2 - ROS board:
 
-    sudo apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654 #update ROS key
+    #ROS Kinetick KEY update
+    sudo apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
     sudo apt-key del 421C365BD9FF1F717815A3895523BAEEB01FA116
-   
-    sudo apt-get update
-    sudo apt-get upgrade
-   
-    curl "https://bootstrap.pypa.io/get-pip.py" -o "get-pip.py"                                                      #get pip latest version
-    sudo python get-pip.py                                                                                           #install pip
+    #update && upgrade packages
+    sudo apt-get update && apt-get upgrade
+    #install pip v19   
+    curl "https://bootstrap.pypa.io/get-pip.py" -o "get-pip.py"
+    sudo python get-pip.py
     sudo apt-get install python-dev
-    sudo apt install libatlas-base-dev                                                                               #required for numpy
-    sudo pip install -U virtualenv                                                                                   #system-wide install
-    vitutalenv --system-site-packages -p python tensorflow                                                           #create virtualenv
-
+    #install numpy requirements
+    sudo apt install libatlas-base-dev
+    #virtualenv system-wide install
+    sudo pip install -U virtualenv        
+    #tensorflow virtualenv creation
+    vitutalenv --system-site-packages -p python tensorflow
+    #deploy tensorflow virtualenv
     source ~/tensorflow/bin/activate
+    #install tensorflow
     pip install --upgrade pip
     sudo pip install 'https://github.com/lhelontra/tensorflow-on-arm/releases/download/v1.14.0-buster/tensorflow-1.14.0-cp27-none-linux_armv7l.whl'
+    #install keras
     sudo pip install keras
-
+    #OpenCV will be installed with the ROS update
 
 # Setup
 
