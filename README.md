@@ -1,10 +1,9 @@
 # Proyect Name
 ARA (Autonomous Robot for Autism)
 
-Emotion recognition, face and hand tracking algorithm used for ARA.
 # General Info
 
-This is the ALV (Autism Learning through Vision) algorithm used in ARA to track emotions, face location and hand rising of Autistic Spectrum Disorder children which are intented to use ARA as a therapeutic solution.
+Emotion recognition, face and hand tracking are carried by the Autism Learning through Vision (ALV) algorithm in the ARA system, aiming to work together with the OAC (Output Adaptive Controller) with a High Order Sliding Mode (HOSM) observer which controls ARA's trajectories and interactions with children, serving as a therapeutic soluciton.
 
 # Technologies
 
