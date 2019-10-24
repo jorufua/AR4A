@@ -48,6 +48,11 @@ Install the following packages on the Husarion CORE2 - ROS board:
     
     #deactivate tensorflow virtualenv
     deactivate
+#Try
+install tensorflow solving the swap problem
+https://gist.github.com/EKami/9869ae6347f68c592c5b5cd181a3b205
+problem solution with bazel
+https://github.com/bazelbuild/bazel/commit/cc8e7166e29fee39d44e578cf98a06486084a6bd
 
 # Setup
 
