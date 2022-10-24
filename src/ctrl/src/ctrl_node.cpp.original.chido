@@ -1,0 +1,326 @@
+#include <ros/ros.h>
+#include <nav_msgs/Odometry.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Twist.h>
+#include <tf/transform_datatypes.h>
+#include <math.h>
+
+#include <stdlib.h>
+#include <std_msgs/Empty.h>
+#include <fstream>
+#include <sstream>
+#include <iostream>
+#include <iomanip>
+
+
+using namespace std;
+/////////////////////////////// Position and Velocity Variables Initialization
+double pos_x = 0, pos_y = 0, pos_z = 0, vel_x = 0.0, vel_y = 0.0, vel_the = 0.0;
+double pos_x_ant =0.0, pos_y_ant = 0.0, pos_the_ant = 0.0;
+/////////////////////////////// Control and Quaternion Variables Initialization
+double error_the=0.000001, error_x=0.000001, error_y=0.000001,utheta = 0.0, ux = 0.0, uy = 0.0, o_x, o_y, o_z, o_w=1.0;
+float kp_x = 0.15, kd_x = 0.02, kp_y = 0.15, kd_y = 0.02,ki_x = 0.007, ki_y = 0.007, ki_the = 0.007;
+float kp = 0.015, kd=0.004;
+double roll=0.0,pitch=0.0,yaw=0.0, skid=0.0;
+float int_err_x=0, int_err_y=0, int_err_the=0;
+/////////////////////////////// Observer Gain Variables Initialization
+float x1t=0,x1h=0,x2t=0,x2h=0,x3t=0,x3h=0;
+float y1t=0,y1h=0,y2t=0,y2h=0,y3t=0,y3h=0;
+float the1t=0,the1h=0,the2t=0,the2h=0,the3t=0,the3h=0;
+float alpha1 = 0.017, alpha2 = 0.017;
+float k11 = 3.6, k12 = 3.6, k21 = .9, k22 = .9;
+//float alpha1 = 3, alpha2 = 20;
+//float k11 = 3.1, k12 = 2.9, k21 = 0.25, k22 = 1.2;
+float phi11_x, phi12_x, phi21_x, phi22_x;
+float phi11_y, phi12_y, phi21_y, phi22_y;
+float phi11_the, phi12_the, phi21_the, phi22_the;
+float ee1_x, ee2_x, ee1_y, ee2_y, ee1_the, ee2_the;
+/////////////////////////////// Constants and TIme Variables Initialization
+float pi = 3.14159, t = 0;
+
+void pose_rob(const nav_msgs::Odometry::ConstPtr& msg)
+{
+        pos_x = msg->pose.pose.position.x;
+        pos_y = msg->pose.pose.position.y;// y is z because of the Optitrack calibration
+        pos_z = msg->pose.pose.position.z;// z is y because of the Optitrack calibration
+        o_x = msg->pose.pose.orientation.x;
+        o_y = msg->pose.pose.orientation.y;
+        o_z = msg->pose.pose.orientation.z;
+        o_w = msg->pose.pose.orientation.w;
+}
+////funcion saturacion//////
+static float sat(float a, float b, float c){
+    if(a>=b) a=b;
+      else a=a;
+      if(a <= c) a=c;
+      else a=a;
+    return a;
+}
+
+////function sign////////
+static float sign(float a){
+    if(a>0) a=1.0;
+      else a=0;
+      if(a < 0) a=-1.0;
+      else a=0;
+    return a;
+}
+
+////normalization [0, 360]
+double norm360(double x){
+    x = fmod(x, 360);
+    if (x < 0)
+        x += 360;
+    return x;
+}
+//deg -= 360. * std::floor(deg * (1. / 360.));
+
+////normalization [-180, 180]
+double norm180(double x){
+    x = fmod(x + 180, 360);
+    if (x < 0)
+        x += 360;
+    return x - 180;
+}
+//deg -= 360. * std::floor((deg + 180.) * (1. / 360.));
+
+int main(int argc, char **argv)
+{
+    ros::init(argc, argv, "ctrl_node");
+    ros::NodeHandle nh;
+
+/////////////////////////////// Subscriber
+    // Subscribe to the Optitrack pose publing node
+    //ros::Subscriber pose_sub = nh.subscribe<geometry_msgs::PoseStamped>("/vrpn_client_node/Robot_1/pose", 20, pose_rob);
+    ros::Subscriber pose_sub = nh.subscribe<nav_msgs::Odometry>("/odom", 20, pose_rob);
+/////////////////////////////// Publisher 
+    ros::Publisher pub_ang = nh.advertise<geometry_msgs::Twist>("/angulo",50);
+    ros::Publisher pub_ctrl = nh.advertise<geometry_msgs::Twist>("/cmd_vel",50);
+    ros::Publisher pub_pos = nh.advertise<geometry_msgs::PoseStamped>("/des",50);
+    int archivo;
+    ifstream last_file;
+    last_file.open ("/home/alexmorfin/ros_workspace/src/ctrl/src/last.txt");
+    last_file >> archivo;
+    last_file.close();
+
+    char str1[80];
+    snprintf (str1,80,"/home/alexmorfin/ros_workspace/src/ctrl/src/datos%d_husarion1.txt",archivo);
+
+    ofstream last_file1;
+    last_file1.open ("/home/alexmorfin/ros_workspace/src/ctrl/src/last.txt");
+    archivo++;
+    last_file1 << archivo;
+    last_file1.close();
+
+    ofstream myfile_hus1;
+    myfile_hus1.open (str1); // ARCHIVO DONDE SE GUARDAN LOS DATOS DEL husarion
+    //The setpoint publishing rate MUST be faster than 2Hz
+    ros::Rate rate(10.0);
+    // Wait for FCU connection
+    float dt = 0.1;
+	
+/////////////////////////////// TF from Quaternions to Euler angles
+        tf::Quaternion q(o_x,o_y,o_z,o_w);
+        tf::Matrix3x3 m(q);
+        m.getRPY(roll,pitch,yaw);
+/////////////////////////////// Create Angles message
+        geometry_msgs::Twist ang;
+	
+	//ang.header.stamp = ros::Time::now();
+	ang.angular.x = roll*(180/M_PI);
+	ang.angular.y = pitch*(180/M_PI);
+	ang.angular.z = yaw*(180/M_PI);
+
+/////////////////////////////// Create Desired Position message
+    geometry_msgs::PoseStamped des;
+
+    // Desired Positions
+//    des.pose.position.x = 0.5;// x Desired Position
+    //des.pose.position.x = r*cos()
+
+//    des.pose.position.y = -0.5;// y Desired Position
+    //des.pose.position.y = r*sin()
+
+    des.pose.position.z = 0.0;// z Desired Position
+    // Desired Velocities
+    des.pose.orientation.x = 0.0;// x Desired Velocity
+
+    des.pose.orientation.y = 0.0;// y Desired Velocity
+/////////////////////////////// Create Control signal message
+    geometry_msgs::Twist ctrl;
+	ctrl.linear.x = 0;
+    	ctrl.linear.y = 0;
+    	ctrl.angular.z = 0;
+	
+ //send a few setpoints before starting
+    for(int i = 100; ros::ok() && i > 0; --i)
+    {
+        pub_ctrl.publish(ctrl);
+        
+	m.getRPY(roll,pitch,yaw);
+	// Velocities
+	vel_x = (pos_x - pos_x_ant)/dt;
+	pos_x_ant = pos_x;
+
+	vel_y = (pos_y - pos_y_ant)/dt;
+	pos_y_ant = pos_y;
+	
+        vel_the =sat( (yaw*(180/M_PI) - pos_the_ant)/dt,1.4,-1.4);
+        pos_the_ant = yaw*(180/M_PI);
+       //ROS_INFO("Husarion o_x: %.3f\t o_y: %.3f\t o_z: %.3f\t o_w:%.3f\n",o_x,o_y,o_z,o_w);
+	ROS_INFO("Husarion v_x: %.3f\t v_y: %.3f\t v_the: %.3f\t roll:%.3f\n",vel_x,vel_y,vel_the,roll);
+        ros::spinOnce();
+        rate.sleep();
+    }
+/////////////////////////////// Main Loop	
+     while(ros::ok())
+    {
+/////////////////////////////// TF from Quaternions to Euler angles
+        tf::Quaternion q(o_x,o_y,o_z,o_w);
+        tf::Matrix3x3 m(q);
+       
+        m.getRPY(roll,pitch,yaw);
+/////////////////////////////// Create Angles message
+        geometry_msgs::Twist ang;
+	
+	//ang.header.stamp = ros::Time::now();
+	ang.angular.x = roll*(180/M_PI);
+	ang.angular.y = pitch*(180/M_PI);
+	ang.angular.z = yaw*(180/M_PI);
+	
+        des.pose.position.x=1.5*cos(((t)*8)*(M_PI/180));//cos(0.125*t); //0.5;//cos(((t)*8)*(M_PI/180));
+        des.pose.position.y=1.5*sin(((t)*8)*(M_PI/180));//0.5*sin(0.25*t);// 0.5;//sin(((t)*8)*(M_PI/180));
+        des.header.stamp = ros::Time::now();
+        pub_ang.publish(ang);
+	
+	// Velocities
+	vel_x = (pos_x - pos_x_ant)/dt;
+	pos_x_ant = pos_x;
+
+	vel_y = (pos_y - pos_y_ant)/dt;
+	pos_y_ant = pos_y;
+	
+        vel_the = sat((yaw*(180/M_PI) - pos_the_ant)/dt,1.4,-1.4);
+        pos_the_ant = yaw*(180/M_PI);
+
+        //HOSM Observer
+        //////////////////////////observer x////////////////////////////
+
+        ee1_x = pos_x - x1h;
+        ee2_x = x2t - x2h;
+
+        phi12_x = (pow(abs(ee2_x),(1/2))*sign(ee2_x)) + alpha2*(pow(abs(ee2_x),(3/2))*sign(ee2_x));
+
+        phi22_x = (sign(ee2_x))/2 +(2*alpha2*ee2_x) + ((2*pow(alpha2,2))/2)*pow(abs(ee2_x),2)*sign(ee2_x);
+
+        phi11_x = (pow(abs(ee1_x),(1/2))*sign(ee1_x)) + alpha1*(pow(abs(ee1_x),(3/2))*sign(ee1_x));
+
+        phi21_x = (sign(ee1_x))/2 + (2*alpha1*ee1_x) + ((3*pow(alpha1,2))/2)*pow(abs(ee1_x),2)*sign(ee1_x);
+
+        x3t = x3t + (k22*phi22_x)*dt;
+        x3h = x3t;
+
+        x2h = x2h + (x3t + k21*phi12_x)*dt;
+        x2t = x2t + (k12*phi21_x)*dt;
+
+        x1h = x1h + (x2t + k11*phi11_x);
+        //////////////////////////observer y////////////////////////////
+
+        ee1_y = pos_y - y1h;
+        ee2_y = y2t - y2h;
+
+        phi12_y = (pow(abs(ee2_y),(1/2))*sign(ee2_y)) + alpha2*(pow(abs(ee2_y),(3/2))*sign(ee2_y));
+
+        phi22_y = (sign(ee2_y))/2 +(2*alpha2*ee2_y) + ((2*pow(alpha2,2))/2)*pow(abs(ee2_y),2)*sign(ee2_y);
+
+        phi11_y = (pow(abs(ee1_y),(1/2))*sign(ee1_y)) + alpha1*(pow(abs(ee1_y),(3/2))*sign(ee1_y));
+
+        phi21_y = (sign(ee1_y))/2 + (2*alpha1*ee1_y) + ((3*pow(alpha1,2))/2)*pow(abs(ee1_y),2)*sign(ee1_y);
+
+        y3t = y3t + (k22*phi22_y)*dt;
+        y3h = y3t;
+
+        y2h = y2h + (y3t + k21*phi12_y)*dt;
+        y2t = y2t + (k12*phi21_y)*dt;
+
+        y1h = y1h + (y2t + k11*phi11_y);
+        ///////////////////////////observer the /////////////////////////
+
+        ee1_the = atan2(des.pose.position.x,des.pose.position.y) - the1h;
+        ee2_the = the2t - the2h;
+        phi12_the = (pow(abs(ee2_the),(1/2))*sign(ee2_the)) + alpha2*(pow(abs(ee2_the),(3/2))*sign(ee2_the));
+
+        phi22_the = (sign(ee2_the))/2 +(2*alpha2*ee2_the) + ((2*pow(alpha2,2))/2)*pow(abs(ee2_the),2)*sign(ee2_the);
+
+        phi11_the = (pow(abs(ee1_the),(1/2))*sign(ee1_the)) + alpha1*(pow(abs(ee1_the),(3/2))*sign(ee1_the));
+
+        phi21_the = (sign(ee1_the))/2 + (2*alpha1*ee1_the) + ((3*pow(alpha1,2))/2)*pow(abs(ee1_the),2)*sign(ee1_the);
+
+        the3t = the3t + (k22*phi22_the)*dt;
+        the3h = the3t;
+
+        the2h = the2h + (the3t + k21*phi12_the)*dt;
+        the2t = the2t + (k12*phi21_the)*dt;
+
+        the1h = the1h + (the2t + k11*phi11_the);
+
+        // PD Control
+    	
+
+        error_x = pos_x-des.pose.position.x;
+        error_y = pos_y-des.pose.position.y;
+	//error_the =roll*(180/M_PI) - atan2(error_x,error_y)*(180/M_PI);
+        //float nErr = sqrt(error_x*error_x + error_y*error_y);
+        //error_the = (sin(yaw)*error_x - cos(yaw)*error_y)*(180/M_PI)/nErr;
+        //if (nErr == 0)
+        //    skid =0;
+        float nErr = sqrt(error_x*error_x + error_y*error_y);
+        if(nErr < 1e-5){
+           error_the = 0;}
+        else{
+           error_the = (sin(yaw)*error_x - cos(yaw)*error_y)*(180/M_PI)/nErr;}
+
+ 	int_err_x = int_err_x + (error_x)*dt;
+        int_err_y = int_err_y + (error_y)*dt;
+        int_err_the = int_err_the + (error_the)*dt;
+
+        ux = kp_x*(pos_x-des.pose.position.x)+kd_x*(vel_x-des.pose.orientation.x)+ki_x*int_err_x;
+        uy = kp_y*(pos_y-des.pose.position.y)+kd_y*(vel_y-des.pose.orientation.y)+ki_y*int_err_y;
+        utheta = kp*(error_the)+kd*(vel_the)+ ki_the*int_err_the;
+        //ux = kp_x*(pos_x-des.pose.position.x)+kd_x*(vel_x-x2h);
+        //uy = kp_y*(pos_y-des.pose.position.y)+kd_y*(vel_y-y2h);
+        //utheta = kp*(error_the)+kd*(vel_the-the2h);
+        //if (des.pose.position.x - (abs(pos_x)) < 0 && (des.pose.position.y - abs(pos_y)) < 0){
+        //skid = -sqrt(pow(ux,2) + pow(uy,2));
+        //}
+        //else{
+        //    skid = sqrt(pow(ux,2) + pow(uy,2));
+        //}
+        skid = sqrt(pow(ux,2) + pow(uy,2));
+        //if (skid <= 0.015 && skid >= -0.015)
+        //    skid= 0;
+
+    	ctrl.linear.x = skid;//skid//-uy;//uy;
+    	ctrl.linear.y = 0;
+    	ctrl.angular.z = utheta;//utheta;//utheta
+  
+        //pose.header.stamp = ros::Time::now();
+        
+        pub_ctrl.publish(ctrl);
+        //ROS_INFO("u_x: %.3f\t uy: %.3f\t E_th: %.3f\t utheta: %.3f\n",ux,uy,error_the,utheta);
+//	ROS_INFO("u_x: %.3f\t uy: %.3f\t utheta: %.3f\t skid: %.3f\n",ux,uy,utheta,skid);
+        ROS_INFO("v_x: %.3f\t v_y: %.3f\t v_the: %.3f\t x2h: %.3f\t y2h: %.3f\t the2h: %.3f\t x2t: %.3f\t y2t: %.3f\t the2t: %.3f\n",vel_x,vel_y,vel_the,x2h,y2h,the2h,x2t,y2t,the2t);
+
+    //pose.pose.position.x = -3*cos((t2*18/20)*(pi/180))+3;
+    //pose.pose.position.y = -3*sin((t2*18/20)*(pi/180));
+    //pose.pose.position.z = 3.5;
+    t=t+dt;
+    pub_pos.publish(des);
+myfile_hus1 << std::setprecision(5) << t << "\t"  << pos_x << "\t" << pos_y << "\t" << yaw*(180/M_PI) << "\t" << vel_x << "\t" <<  vel_y << "\t" << vel_the << "\t" << skid << "\t" << utheta << "\t" << x1h << "\t" << y1h << "\t" << the1h << "\t" << x2h << "\t" << y2h << "\t" << the2h << "\t" << x3h << "\t" << y3h << "\t" << the3h << "\n";
+        ros::spinOnce();
+        rate.sleep();
+    }
+myfile_hus1.close();
+    return 0;
+}
+
